@@ -31,7 +31,7 @@ type SimpleServer struct {
 	connections  map[int]net.Conn
 	connCounter  int
 	listener     net.Listener
-	isStarted    bool
+	running      bool
 }
 
 func (s *SimpleServer) onError(err error) {
@@ -67,6 +67,12 @@ func (s *SimpleServer) removeConnection(id int) {
 	s.Unlock()
 }
 
+func (s *SimpleServer) isRunning() bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.running
+}
+
 // OnError error callback setter
 func (s *SimpleServer) OnError(callback func(error)) {
 	s.errorHandler = callback
@@ -94,7 +100,7 @@ func (s *SimpleServer) SendToAll(msg string) {
 // Stop stops the server
 func (s *SimpleServer) Stop() {
 	s.Lock()
-	s.isStarted = false
+	s.running = false
 	for _, conn := range s.connections {
 		conn.Close()
 	}
@@ -113,23 +119,20 @@ func (s *SimpleServer) Start(network string, address string) {
 		return
 	}
 	s.onEvent(Started)
-	s.isStarted = true
+	s.running = true
 	s.listener = listener
 	s.connections = make(map[int]net.Conn)
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			s.RLock()
-			if !s.isStarted {
-				s.RUnlock()
+			if !s.isRunning() {
 				break
+			} else {
+				s.errorHandler(err)
+				conn.Close()
+				continue
 			}
-			s.RUnlock()
-
-			s.errorHandler(err)
-			conn.Close()
-			continue
 		}
 		go handleConnection(s, conn)
 	}
@@ -146,8 +149,10 @@ func handleConnection(s *SimpleServer, conn net.Conn) {
 	for {
 		str, err := reader.ReadString('\n')
 		if err != nil {
-			s.onError(err)
-			s.removeConnection(id)
+			if s.isRunning() {
+				s.onError(err)
+				s.removeConnection(id)
+			}
 			break
 		}
 
