@@ -119,8 +119,8 @@ func (s *SimpleServer) Start(network string, address string) {
 	for {
 		s.RLock()
 		if !s.isStarted {
-			break
 			s.RUnlock()
+			break
 		}
 		s.RUnlock()
 
