@@ -30,6 +30,7 @@ type SimpleServer struct {
 	msgHandler   func(int, string)
 	connections  map[int]net.Conn
 	connCounter  int
+	listener     net.Listener
 	isStarted    bool
 }
 
@@ -99,6 +100,8 @@ func (s *SimpleServer) Stop() {
 	}
 	s.connCounter = 0
 	s.connections = make(map[int]net.Conn)
+	s.listener.Close()
+	s.onEvent(Stopped)
 	s.Unlock()
 }
 
@@ -111,21 +114,19 @@ func (s *SimpleServer) Start(network string, address string) {
 	}
 	s.onEvent(Started)
 	s.isStarted = true
-	defer listener.Close()
-	defer s.onEvent(Stopped)
-
+	s.listener = listener
 	s.connections = make(map[int]net.Conn)
 
 	for {
-		s.RLock()
-		if !s.isStarted {
-			s.RUnlock()
-			break
-		}
-		s.RUnlock()
-
 		conn, err := listener.Accept()
 		if err != nil {
+			s.RLock()
+			if !s.isStarted {
+				s.RUnlock()
+				break
+			}
+			s.RUnlock()
+
 			s.errorHandler(err)
 			conn.Close()
 			continue
