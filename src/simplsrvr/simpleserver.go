@@ -1,7 +1,6 @@
 package simplsrvr
 
 import (
-	"bufio"
 	"io"
 	"net"
 	"strings"
@@ -10,6 +9,9 @@ import (
 
 // SimpleServerEvent simple server event
 type SimpleServerEvent int
+
+// BufferSizeDefault default size of buffer for conn.Read()
+const BufferSizeDefault uint = 1024
 
 const (
 	// Started server started event
@@ -32,6 +34,7 @@ type SimpleServer struct {
 	connCounter  int
 	listener     net.Listener
 	running      bool
+	bufferSize   uint
 }
 
 // OnError error callback setter
@@ -75,6 +78,20 @@ func (s *SimpleServer) SendMessageToAllExcept(msg string, id int) {
 	s.RUnlock()
 }
 
+// GetBufferSize returns the buffer size for conn.Read()
+func (s *SimpleServer) GetBufferSize() uint {
+	s.RLock()
+	defer s.RUnlock()
+	return s.bufferSize
+}
+
+// SetBufferSize sets the buffer size for conn.Read()
+func (s *SimpleServer) SetBufferSize(value uint) {
+	s.Lock()
+	s.bufferSize = value
+	s.Unlock()
+}
+
 // Stop stops the server
 func (s *SimpleServer) Stop() {
 	s.setRunning(false)
@@ -98,6 +115,9 @@ func (s *SimpleServer) Start(network string, address string) {
 	s.sendEvent(Started)
 	s.running = true
 	s.listener = listener
+	if s.bufferSize == 0 {
+		s.bufferSize = BufferSizeDefault
+	}
 	s.connections = make(map[int]*net.Conn)
 
 	for {
@@ -118,11 +138,10 @@ func (s *SimpleServer) Start(network string, address string) {
 func handleConnection(s *SimpleServer, conn *net.Conn) {
 	id := s.registerConnection(conn)
 	s.sendEvent(ConnAccepted)
-
-	reader := bufio.NewReader(*conn)
+	buff := make([]byte, s.GetBufferSize())
 
 	for {
-		str, err := reader.ReadString('\n')
+		n, err := (*conn).Read(buff)
 		if err != nil {
 			if s.isRunning() {
 				s.sendError(err)
@@ -133,7 +152,10 @@ func handleConnection(s *SimpleServer, conn *net.Conn) {
 			break
 		}
 
-		s.sendMessage(id, strings.Trim(str, "\n\r\t"))
+		msg := strings.Trim(string(buff[0:n]), "\n\r\t")
+		if len(msg) > 0 {
+			s.sendMessage(id, msg)
+		}
 	}
 }
 
