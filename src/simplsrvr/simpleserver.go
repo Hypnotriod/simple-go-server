@@ -162,7 +162,7 @@ func (s *SimpleServer) isRunning() bool {
 func (s *SimpleServer) setRunning(value bool) {
 	s.Lock()
 	s.running = value
-	defer s.Unlock()
+	s.Unlock()
 }
 
 func (s *SimpleServer) closeAllConnections() {
