@@ -126,7 +126,7 @@ func handleConnection(s *SimpleServer, conn *net.Conn) {
 		if err != nil {
 			if s.isRunning() {
 				s.sendError(err)
-				s.removeConnection(id)
+				s.unregisterConnection(id)
 				(*conn).Close()
 			}
 			s.sendEvent(ConnClosed)
@@ -170,7 +170,7 @@ func (s *SimpleServer) registerConnection(conn *net.Conn) int {
 	return id
 }
 
-func (s *SimpleServer) removeConnection(id int) {
+func (s *SimpleServer) unregisterConnection(id int) {
 	s.Lock()
 	delete(s.connections, id)
 	s.Unlock()
