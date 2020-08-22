@@ -25,7 +25,7 @@ func handleSeverInput(server *simplsrvr.SimpleServer) {
 				server.Stop()
 				break
 			}
-			server.SendToAll(msg + "\r\n")
+			server.SendMessageToAll("Message from Server: " + msg + "\r\n")
 		}
 	}
 }
@@ -49,7 +49,9 @@ func lauchServer(server *simplsrvr.SimpleServer) {
 	}
 
 	onMessage := func(id int, msg string) {
-		fmt.Printf("Message received form %d: %s\r\n", id, msg)
+		msg = fmt.Sprintf("Message form %d: %s\r\n", id, msg)
+		fmt.Print(msg)
+		server.SendMessageToAllExcept(msg, id)
 	}
 
 	server.OnEvent(onServerEvent)

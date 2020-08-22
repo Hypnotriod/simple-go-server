@@ -36,24 +36,41 @@ type SimpleServer struct {
 
 // OnError error callback setter
 func (s *SimpleServer) OnError(callback func(error)) {
+	s.Lock()
 	s.errorHandler = callback
+	s.Unlock()
 }
 
 // OnEvent event callback setter
 func (s *SimpleServer) OnEvent(callback func(SimpleServerEvent)) {
+	s.Lock()
 	s.eventHandler = callback
+	s.Unlock()
 }
 
 // OnMessage message callback setter
 func (s *SimpleServer) OnMessage(callback func(int, string)) {
+	s.Lock()
 	s.msgHandler = callback
+	s.Unlock()
 }
 
-// SendToAll sends message to all connections
-func (s *SimpleServer) SendToAll(msg string) {
+// SendMessageToAll sends message to all connections
+func (s *SimpleServer) SendMessageToAll(msg string) {
 	s.RLock()
 	for _, conn := range s.connections {
 		(*conn).Write([]byte(msg))
+	}
+	s.RUnlock()
+}
+
+// SendMessageToAllExcept sends message to all connections except id provided
+func (s *SimpleServer) SendMessageToAllExcept(msg string, id int) {
+	s.RLock()
+	for i, conn := range s.connections {
+		if i != id {
+			(*conn).Write([]byte(msg))
+		}
 	}
 	s.RUnlock()
 }
@@ -67,18 +84,18 @@ func (s *SimpleServer) Stop() {
 	s.listener.Close()
 	s.RUnlock()
 
-	s.onEvent(Stopped)
+	s.sendEvent(Stopped)
 }
 
 // Start starts the server
 func (s *SimpleServer) Start(network string, address string) {
 	listener, err := net.Listen(network, address)
 	if err != nil {
-		s.onError(err)
-		s.eventHandler(ConnClosed)
+		s.sendError(err)
+		s.sendEvent(ConnClosed)
 		return
 	}
-	s.onEvent(Started)
+	s.sendEvent(Started)
 	s.running = true
 	s.listener = listener
 	s.connections = make(map[int]*net.Conn)
@@ -89,7 +106,7 @@ func (s *SimpleServer) Start(network string, address string) {
 			if !s.isRunning() {
 				break
 			} else {
-				s.errorHandler(err)
+				s.sendError(err)
 				conn.Close()
 				continue
 			}
@@ -100,7 +117,7 @@ func (s *SimpleServer) Start(network string, address string) {
 
 func handleConnection(s *SimpleServer, conn *net.Conn) {
 	id := s.registerConnection(conn)
-	s.eventHandler(ConnAccepted)
+	s.sendEvent(ConnAccepted)
 
 	reader := bufio.NewReader(*conn)
 
@@ -108,34 +125,40 @@ func handleConnection(s *SimpleServer, conn *net.Conn) {
 		str, err := reader.ReadString('\n')
 		if err != nil {
 			if s.isRunning() {
-				s.onError(err)
+				s.sendError(err)
 				s.removeConnection(id)
 				(*conn).Close()
 			}
-			s.eventHandler(ConnClosed)
+			s.sendEvent(ConnClosed)
 			break
 		}
 
-		s.onMessage(id, strings.Trim(str, "\n\r\t"))
+		s.sendMessage(id, strings.Trim(str, "\n\r\t"))
 	}
 }
 
-func (s *SimpleServer) onError(err error) {
+func (s *SimpleServer) sendError(err error) {
+	s.RLock()
 	if s.errorHandler != nil && err != io.EOF {
 		s.errorHandler(err)
 	}
+	s.RUnlock()
 }
 
-func (s *SimpleServer) onEvent(event SimpleServerEvent) {
+func (s *SimpleServer) sendEvent(event SimpleServerEvent) {
+	s.RLock()
 	if s.eventHandler != nil {
 		s.eventHandler(event)
 	}
+	s.RUnlock()
 }
 
-func (s *SimpleServer) onMessage(id int, msg string) {
+func (s *SimpleServer) sendMessage(id int, msg string) {
+	s.RLock()
 	if s.msgHandler != nil {
 		s.msgHandler(id, msg)
 	}
+	s.RUnlock()
 }
 
 func (s *SimpleServer) registerConnection(conn *net.Conn) int {
