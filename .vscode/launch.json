@@ -6,7 +6,7 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/src",
+            "program": "${workspaceFolder}",
             "env": {},
             "args": []
         },
@@ -15,7 +15,7 @@
             "type": "go",
             "request": "attach",
             "mode": "remote",
-            "remotePath": "${workspaceFolder}/src",
+            "remotePath": "${workspaceFolder}",
             "port": 2340,
             "host": "127.0.0.1"
         }

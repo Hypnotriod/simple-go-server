@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"./simplsrvr"
+	"github.com/Hypnotriod/simple-go-server/simplsrvr"
 )
 
 func main() {
